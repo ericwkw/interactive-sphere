@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { GUI } from 'https://unpkg.com/lil-gui@0.19.1/dist/lil-gui.esm.js';
 
 // Scene
@@ -12,7 +11,7 @@ const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerH
 camera.position.z = 5;
 
 // Renderer
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
@@ -21,21 +20,40 @@ const controls = new OrbitControls(camera, renderer.domElement);
 
 // Sphere
 const geometry = new THREE.SphereGeometry(1, 32, 32);
-const material = new THREE.MeshStandardMaterial({ color: 0xffffff });
+const material = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    metalness: 0.0,
+    roughness: 0.5,
+    clearcoat: 0.0,
+});
 const sphere = new THREE.Mesh(geometry, material);
 scene.add(sphere);
 
 // Light
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
 scene.add(ambientLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
-directionalLight.position.set(10, 10, 5);
-directionalLight.castShadow = true; // Enable shadow casting
-scene.add(directionalLight);
+// Key Light
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
+keyLight.position.set(5, 5, 5);
+keyLight.castShadow = true;
+scene.add(keyLight);
+
+// Fill Light
+const fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
+fillLight.position.set(-5, 5, 5);
+scene.add(fillLight);
+
+// Back Light
+const backLight = new THREE.DirectionalLight(0xffffff, 0.8);
+backLight.position.set(0, 5, -5);
+scene.add(backLight);
 
 // Shadow configuration
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
+keyLight.shadow.mapSize.width = 2048; // Higher resolution
+keyLight.shadow.mapSize.height = 2048; // Higher resolution
 sphere.castShadow = true;
 
 // Ground Plane
@@ -52,23 +70,33 @@ const gui = new GUI();
 const params = {
     color: 0xffffff,
     texture: 'None',
-    rotationSpeed: 0.01
+    rotationSpeed: 0.01,
+    metalness: 0.0,
+    roughness: 0.5,
+    clearcoat: 0.0,
+    transmission: 1.0,
+    thickness: 0.5
 };
 
 gui.addColor(params, 'color').onChange(() => {
     material.color.set(params.color);
 });
 
+gui.add(params, 'metalness', 0, 1).onChange(() => {
+    material.metalness = params.metalness;
+});
+
+gui.add(params, 'roughness', 0, 1).onChange(() => {
+    material.roughness = params.roughness;
+});
+
+gui.add(params, 'clearcoat', 0, 1).onChange(() => {
+    material.clearcoat = params.clearcoat;
+});
+
 const textureLoader = new THREE.TextureLoader();
 const rockTexture = textureLoader.load('https://threejs.org/examples/textures/hardwood2_diffuse.jpg');
 const woodTexture = textureLoader.load('https://threejs.org/examples/textures/brick_diffuse.jpg');
-
-const rgbeLoader = new RGBELoader();
-let envMap;
-rgbeLoader.load('https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/peppermint_powerplant_2_1k.hdr', (texture) => {
-    texture.mapping = THREE.EquirectangularReflectionMapping;
-    envMap = texture;
-});
 
 const glassMaterial = new THREE.MeshPhysicalMaterial({
     roughness: 0,
@@ -92,8 +120,6 @@ gui.add(params, 'texture', ['None', 'Rock', 'Wood', 'Glass']).onChange(() => {
             break;
         case 'Glass':
             sphere.material = glassMaterial;
-            scene.background = envMap;
-            sphere.material.envMap = envMap;
             break;
     }
     material.needsUpdate = true;
